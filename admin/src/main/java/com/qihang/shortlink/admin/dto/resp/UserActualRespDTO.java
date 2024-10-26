@@ -1,16 +1,14 @@
 package com.qihang.shortlink.admin.dto.resp;
 
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.qihang.shortlink.admin.common.serialize.PhoneDesensitizationSerializer;
 import lombok.Data;
 
 /**
- * @description: 用户返回参数响应
+ * @description: 用户返回参数响应--无脱敏
  * @author: zhqihang
  * @date: 2024/10/25
  */
 @Data
-public class UserRespDTO {
+public class UserActualRespDTO {
 
     /**
      * id
@@ -30,7 +28,6 @@ public class UserRespDTO {
     /**
      * 手机号
      */
-    @JsonSerialize(using = PhoneDesensitizationSerializer.class) // 序列化时使用指定的序列化器
     private String phone;
 
     /**
