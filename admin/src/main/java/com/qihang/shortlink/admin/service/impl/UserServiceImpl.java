@@ -13,8 +13,14 @@ import com.qihang.shortlink.admin.dto.resp.UserRespDTO;
 import com.qihang.shortlink.admin.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.redisson.api.RBloomFilter;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
+
+import static com.qihang.shortlink.admin.common.constant.RedisCacheConstant.LOCK_USER_REGISTER_KEY;
+import static com.qihang.shortlink.admin.common.enums.UserErrorCodeEnum.USER_NAME_EXIST;
+import static com.qihang.shortlink.admin.common.enums.UserErrorCodeEnum.USER_SAVE_ERROR;
 
 /**
  * @description: 用户接口实现层
@@ -27,6 +33,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
 
     // 构造器注入
     private final RBloomFilter<String> userRegisterCachePenetrationBloomFilter;
+
+    private final RedissonClient redissonClient;
 
     @Override
     public UserRespDTO getUserByUsername(String username) {
@@ -54,14 +62,26 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, UserDO> implements 
     public void register(UserRegisterReqDTO requestParam) {
         // 用户名已存在 抛出异常提示信息
         if (!hasUsername(requestParam.getUsername())) {
-            throw new ClientException(UserErrorCodeEnum.USER_NAME_EXIST);
+            throw new ClientException(USER_NAME_EXIST);
         }
-        int insert = baseMapper.insert(BeanUtil.toBean(requestParam, UserDO.class));
-        // 如果插入失败 抛出异常提示信息
-        if (insert < 1) {
-            throw new ClientException(UserErrorCodeEnum.USER_SAVE_ERROR);
+        // 这里获取分布式锁 防止大量请求注册同一个合法用户名
+        RLock lock = redissonClient.getLock(LOCK_USER_REGISTER_KEY + requestParam.getUsername());
+        // 获取到锁 就可以注册 保证只有一个线程进入
+        try {
+            if (lock.tryLock()) {
+                int insert = baseMapper.insert(BeanUtil.toBean(requestParam, UserDO.class));
+                // 如果插入失败 抛出异常提示信息
+                if (insert < 1) {
+                    throw new ClientException(USER_SAVE_ERROR);
+                }
+                // 插入成功 写入布隆过滤器
+                userRegisterCachePenetrationBloomFilter.add(requestParam.getUsername());
+                return;
+            }
+            throw new ClientException(USER_NAME_EXIST);
+        } finally {
+            // 释放锁
+            lock.unlock();
         }
-        // 插入成功 写入布隆过滤器
-        userRegisterCachePenetrationBloomFilter.add(requestParam.getUsername());
     }
 }
