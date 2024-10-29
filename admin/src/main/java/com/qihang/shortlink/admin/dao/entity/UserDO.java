@@ -1,6 +1,7 @@
 package com.qihang.shortlink.admin.dao.entity;
 
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.qihang.shortlink.admin.common.database.BaseDO;
 import lombok.Data;
 
 /**
@@ -10,7 +11,7 @@ import lombok.Data;
  */
 @Data
 @TableName("t_user")
-public class UserDO  {
+public class UserDO extends BaseDO {
 
     /**
      * id
