@@ -29,7 +29,7 @@ public class UserController {
     /**
      * 根据用户查询用户信息
      */
-    @GetMapping("/api/short-link/v1/user/{username}")
+    @GetMapping("/api/short-link/admin/v1/user/{username}")
     public Result<UserRespDTO> getUserByUserName(@PathVariable("username") String username) {
         /*
         这里手机号需要脱敏
@@ -42,7 +42,7 @@ public class UserController {
     /**
      * 根据用户查询用户无脱敏信息
      */
-    @GetMapping("/api/short-link/v1/actual/user/{username}")
+    @GetMapping("/api/short-link/admin/v1/actual/user/{username}")
     public Result<UserActualRespDTO> getActualUserByUserName(@PathVariable("username") String username) {
         return Results.success(BeanUtil.toBean(userService.getUserByUsername(username), UserActualRespDTO.class));
     }
@@ -50,7 +50,7 @@ public class UserController {
     /**
      * 查询用户是否可用（是否不存在）
      */
-    @GetMapping("/api/short-link/v1/user/has-username")
+    @GetMapping("/api/short-link/admin/v1/user/has-username")
     public Result<Boolean> hasUsername(@RequestParam("username") String username) {
         return Results.success(userService.hasUsername(username));
     }
@@ -58,7 +58,7 @@ public class UserController {
     /**
      * 注册用户
      */
-    @PostMapping("/api/short-link/v1/user")
+    @PostMapping("/api/short-link/admin/v1/user")
     public Result<Void> register(@RequestBody UserRegisterReqDTO requestParam) {
         userService.register(requestParam);
         return Results.success();
@@ -67,7 +67,7 @@ public class UserController {
     /**
      * 修改用户
      */
-    @PutMapping("/api/short-link/v1/user")
+    @PutMapping("/api/short-link/admin/v1/user")
     public Result<Void> update(@RequestBody UserUpdateReqDTO requestParam) {
         userService.update(requestParam);
         return Results.success();
@@ -76,7 +76,7 @@ public class UserController {
     /**
      * 用户登录
      */
-    @PostMapping("/api/short-link/v1/user/login")
+    @PostMapping("/api/short-link/admin/v1/user/login")
     public Result<UserLoginRespDTO> login(@RequestBody UserLoginReqDTO requestParam) {
         return Results.success(userService.login(requestParam));
     }
@@ -84,7 +84,7 @@ public class UserController {
     /**
      * 检查用户是否登录
      */
-    @GetMapping("/api/short-link/v1/user/check-login")
+    @GetMapping("/api/short-link/admin/v1/user/check-login")
     public Result<Boolean> checkLogin(@RequestParam String username, @RequestParam String token) {
         return Results.success(userService.checkLogin(username, token));
     }
@@ -92,7 +92,7 @@ public class UserController {
     /**
      * 用户退出登录
      */
-    @DeleteMapping("/api/short-link/v1/user/logout")
+    @DeleteMapping("/api/short-link/admin/v1/user/logout")
     public Result<Void> logout(@RequestParam String username, @RequestParam String token) {
         userService.logout(username, token);
         return Results.success();
