@@ -1,4 +1,4 @@
-package com.qihang.shortlink.project.dto.resp;
+package com.qihang.shortlink.admin.remote.dto.resp;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
