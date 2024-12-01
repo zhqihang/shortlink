@@ -213,10 +213,11 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
         通过 布隆过滤器 + 缓存空值 解决缓存穿透问题
          */
         boolean contains = shortUriCreateCachePenetrationBloomFilter.contains(fullShortUrl);
+        // 如果没有命中直接返回
         if (!contains) {
             ((HttpServletResponse) response).sendRedirect("/page/notfound");
             return;
-        } // 如果没有命中直接返回
+        }
         // 命中逻辑
         String gotoIsNullShortLink = stringRedisTemplate.opsForValue().get(String.format(GOTO_IS_NULL_SHORT_LINK_KEY, fullShortUrl));
         if (StrUtil.isNotBlank(gotoIsNullShortLink)) {
