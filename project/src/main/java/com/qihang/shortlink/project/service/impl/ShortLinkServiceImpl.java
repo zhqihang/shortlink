@@ -24,6 +24,7 @@ import com.qihang.shortlink.project.dto.resp.ShortLinkGroupCountQueryRespDTO;
 import com.qihang.shortlink.project.dto.resp.ShortLinkPageRespDTO;
 import com.qihang.shortlink.project.service.ShortLinkService;
 import com.qihang.shortlink.project.toolkit.HashUtil;
+import com.qihang.shortlink.project.toolkit.LinkUtil;
 import jakarta.servlet.ServletRequest;
 import jakarta.servlet.ServletResponse;
 import jakarta.servlet.http.HttpServletResponse;
@@ -100,6 +101,12 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                 throw new ServiceException("短链接生成重复");
             }
         }
+        // 缓存预热
+        stringRedisTemplate.opsForValue().set(
+                fullShortUrl, requestParam.getOriginUrl(),
+                LinkUtil.getLinkCacheValidTime(requestParam.getValidDate()), TimeUnit.MILLISECONDS
+        );
+
         // 完整短链接 加入布隆过滤器
         shortUriCreateCachePenetrationBloomFilter.add(fullShortUrl);
         return ShortLinkCreateRespDTO.builder()
