@@ -9,7 +9,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.qihang.shortlink.project.dao.entity.ShortLinkDO;
 import com.qihang.shortlink.project.dao.mapper.ShortLinkMapper;
 import com.qihang.shortlink.project.dto.req.RecycleBinSaveReqDTO;
-import com.qihang.shortlink.project.dto.req.ShortLinkPageReqDTO;
+import com.qihang.shortlink.project.dto.req.ShortLinkRecycleBinPageReqDTO;
 import com.qihang.shortlink.project.dto.resp.ShortLinkPageRespDTO;
 import com.qihang.shortlink.project.service.RecycleBinService;
 import lombok.RequiredArgsConstructor;
@@ -44,15 +44,14 @@ public class RecycleBinServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLin
     }
 
     @Override
-    public IPage<ShortLinkPageRespDTO> pageShortLink(ShortLinkPageReqDTO requestParam) {
+    public IPage<ShortLinkPageRespDTO> pageShortLink(ShortLinkRecycleBinPageReqDTO requestParam) {
         // 分页查询
         LambdaQueryWrapper<ShortLinkDO> queryWrapper = Wrappers.lambdaQuery(ShortLinkDO.class)
-                .eq(ShortLinkDO::getGid, requestParam.getGid())
+                .in(ShortLinkDO::getGid, requestParam.getGidList())
                 .eq(ShortLinkDO::getEnableStatus, 1) // 未被启用的短链接
                 .eq(ShortLinkDO::getDelFlag, 0)
-                .orderByDesc(ShortLinkDO::getCreateTime);
-        ShortLinkPageReqDTO resultPage = baseMapper.selectPage(requestParam, queryWrapper);
-
+                .orderByDesc(ShortLinkDO::getUpdateTime);
+        IPage<ShortLinkDO> resultPage = baseMapper.selectPage(requestParam, queryWrapper);
         return resultPage.convert(each -> {
             ShortLinkPageRespDTO result = BeanUtil.toBean(each, ShortLinkPageRespDTO.class);
             result.setDomain("http://" + result.getDomain());
