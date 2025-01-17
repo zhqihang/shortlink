@@ -1,6 +1,8 @@
 package com.qihang.shortlink.project.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.date.Week;
 import cn.hutool.core.text.StrBuilder;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -12,8 +14,10 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.qihang.shortlink.project.common.convention.exception.ClientException;
 import com.qihang.shortlink.project.common.convention.exception.ServiceException;
 import com.qihang.shortlink.project.common.enums.VaildDateTypeEnum;
+import com.qihang.shortlink.project.dao.entity.LinkAccessStatsDO;
 import com.qihang.shortlink.project.dao.entity.ShortLinkDO;
 import com.qihang.shortlink.project.dao.entity.ShortLinkGotoDO;
+import com.qihang.shortlink.project.dao.mapper.LinkAccessStatsMapper;
 import com.qihang.shortlink.project.dao.mapper.ShortLinkGotoMapper;
 import com.qihang.shortlink.project.dao.mapper.ShortLinkMapper;
 import com.qihang.shortlink.project.dto.req.ShortLinkCreateReqDTO;
@@ -63,11 +67,10 @@ import static com.qihang.shortlink.project.common.constant.RedisKeyConstant.*;
 public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLinkDO> implements ShortLinkService{
 
     private final RBloomFilter<String> shortUriCreateCachePenetrationBloomFilter;
-
     private final ShortLinkGotoMapper shortLinkGotoMapper;
-
     private final StringRedisTemplate stringRedisTemplate;
     private final RedissonClient redissonClient; // Redis分布式锁
+    private final LinkAccessStatsMapper linkAccessStatsMapper; // 短连链接基础访问
 
 
     @Override
@@ -211,9 +214,11 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
     public void restoreUrl(String shortUri, ServletRequest request, ServletResponse response) {
         String serverName = request.getServerName();
         String fullShortUrl = serverName + "/" + shortUri;
-        // 获取原始链接
+        // 从缓存获取原始链接
         String originalLink = stringRedisTemplate.opsForValue().get(String.format(GOTO_SHORT_LINK_KEY, fullShortUrl));
         if (StrUtil.isNotBlank(originalLink)) {
+            // 更新基础访问数据（无从得知gid）
+            shortLinkStats(fullShortUrl, null, request, response);
             // 如果原始链接不为空 直接重定向
             ((HttpServletResponse) response).sendRedirect(originalLink);
             return;
@@ -228,9 +233,10 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             ((HttpServletResponse) response).sendRedirect("/page/notfound");
             return;
         }
-        // 命中逻辑
-        String gotoIsNullShortLink = stringRedisTemplate.opsForValue().get(String.format(GOTO_IS_NULL_SHORT_LINK_KEY, fullShortUrl));
+        // 空值判断
+        String gotoIsNullShortLink = stringRedisTemplate.opsForValue().get(String.format(GOTO_IS_NULL_SHORT_LINK_KEY, fullShortUrl)); // 获取空值标记
         if (StrUtil.isNotBlank(gotoIsNullShortLink)) {
+            // 如果存在为空标记，重定向
             ((HttpServletResponse) response).sendRedirect("/page/notfound");
             return;
         }
@@ -242,6 +248,8 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
             // 双重判定锁：再次判定 原始链接 是否在缓存中 在则直接返回
             originalLink = stringRedisTemplate.opsForValue().get(String.format(GOTO_SHORT_LINK_KEY, fullShortUrl));
             if (StrUtil.isNotBlank(originalLink)) {
+                // 更新基础访问数据
+                shortLinkStats(fullShortUrl, null, request, response);
                 // 如果原始链接不为空 直接重定向
                 ((HttpServletResponse) response).sendRedirect(originalLink);
                 return;
@@ -274,10 +282,40 @@ public class ShortLinkServiceImpl extends ServiceImpl<ShortLinkMapper, ShortLink
                     shortLinkDO.getOriginUrl(),
                     LinkUtil.getLinkCacheValidTime(shortLinkDO.getValidDate()), TimeUnit.MILLISECONDS
             );
+            // 更新基础访问数据
+            shortLinkStats(fullShortUrl, shortLinkDO.getGid(), request, response);
             // 重定向跳转
             ((HttpServletResponse) response).sendRedirect(shortLinkDO.getOriginUrl());
         } finally {
             lock.unlock();
+        }
+    }
+
+    private void shortLinkStats(String fullShortUrl, String gid, ServletRequest request, ServletResponse response) {
+        try {
+            // 判断gid为空，则查询
+            if (StrUtil.isBlank(gid)) {
+                LambdaQueryWrapper<ShortLinkGotoDO> queryWrapper = Wrappers.lambdaQuery(ShortLinkGotoDO.class)
+                        .eq(ShortLinkGotoDO::getFullShortUrl, fullShortUrl);
+                ShortLinkGotoDO shortLinkGotoDO = shortLinkGotoMapper.selectOne(queryWrapper);
+                gid = shortLinkGotoDO.getGid();
+            }
+            int hour = DateUtil.hour(new Date(), true);
+            Week week = DateUtil.dayOfWeekEnum(new Date());
+            int weekValue = week.getIso8601Value();
+            LinkAccessStatsDO linkAccessStatsDO = LinkAccessStatsDO.builder()
+                    .pv(1)
+                    .uv(1)
+                    .uip(1)
+                    .hour(hour)
+                    .weekday(weekValue)
+                    .fullShortUrl(fullShortUrl)
+                    .gid(gid)
+                    .date(new Date())
+                    .build();
+            linkAccessStatsMapper.shortLinkStats(linkAccessStatsDO);
+        } catch (Throwable ex) {
+            log.error("短链接访问量统计异常", ex);
         }
     }
 
